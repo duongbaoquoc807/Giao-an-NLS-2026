@@ -5,13 +5,13 @@ export interface DiscoveredModel {
   description: string;
 }
 
-// Default fallback list of verified Google Gemini models
 export const DEFAULT_MODELS = [
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
   'gemini-1.5-pro',
-  'gemini-2.0-flash-lite-preview-02-05',
-  'gemini-1.5-flash-8b'
+  'gemini-1.5-flash'
 ];
 
 /**
@@ -30,13 +30,9 @@ export async function fetchAvailableModels(apiKey: string): Promise<string[]> {
     if (res.ok && Array.isArray(data.models)) {
       const validModels = data.models
         .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
-        .map((m: any) => {
-          // Normalize name: 'models/gemini-2.0-flash' -> 'gemini-2.0-flash'
-          return m.name.replace(/^models\//, '');
-        });
+        .map((m: any) => m.name.replace(/^models\//, ''));
 
       if (validModels.length > 0) {
-        // Cache discovered models in localStorage
         try {
           localStorage.setItem('cached_available_models', JSON.stringify(validModels));
         } catch (e) {}
@@ -44,15 +40,12 @@ export async function fetchAvailableModels(apiKey: string): Promise<string[]> {
       }
     }
   } catch (err) {
-    console.warn('Cannot fetch dynamic models list, using default model list:', err);
+    console.warn('Cannot fetch dynamic models list:', err);
   }
   
   return DEFAULT_MODELS;
 }
 
-/**
- * Gets cached or default list of valid models
- */
 export function getCachedModels(): string[] {
   try {
     const cached = localStorage.getItem('cached_available_models');
@@ -74,22 +67,20 @@ export function resolveModelName(selectedModel: string, availableModels: string[
   
   const clean = selectedModel.trim().toLowerCase();
   
-  // Exact match
+  // Exact match in available models
   const exact = availableModels.find(m => m.toLowerCase() === clean);
   if (exact) return exact;
 
-  // Pro match
+  // Flash family matches
+  if (clean.includes('3.7') || clean.includes('3.6') || clean.includes('3') || clean.includes('2.5') || clean.includes('flash')) {
+    const flash = availableModels.find(m => m.includes('2.0-flash') || m.includes('1.5-flash') || m.includes('flash'));
+    if (flash) return flash;
+  }
+
+  // Pro family matches
   if (clean.includes('pro')) {
     const pro = availableModels.find(m => m.includes('pro'));
     if (pro) return pro;
-  }
-
-  // Flash 2.5 / 2.0 / 3.0 match
-  if (clean.includes('2.5') || clean.includes('3') || clean.includes('flash')) {
-    const flash2 = availableModels.find(m => m.includes('2.0-flash') || m.includes('2.5-flash'));
-    if (flash2) return flash2;
-    const anyFlash = availableModels.find(m => m.includes('flash'));
-    if (anyFlash) return anyFlash;
   }
 
   return availableModels[0] || 'gemini-2.0-flash';
@@ -109,16 +100,13 @@ export async function generateContent(
     throw new Error('Chưa thiết lập Gemini API Key. Vui lòng nhấp vào nút "Settings (API Key)" trên Header để dán API Key.');
   }
 
-  const selectedModel = localStorage.getItem('selected_gemini_model') || 'gemini-2.5-flash';
-  
-  // 1. Get verified model list (cached or default)
+  const selectedModel = localStorage.getItem('selected_gemini_model') || 'gemini-3.7-flash';
   let availableModels = getCachedModels();
-  
-  // 2. Resolve preferred model
   const preferredModel = resolveModelName(selectedModel, availableModels);
   
-  // 3. Build unique execution queue starting with preferred model
+  // Execution queue: user model first, then verified fallbacks
   const executionQueue = Array.from(new Set([
+    selectedModel,
     preferredModel,
     'gemini-2.0-flash',
     'gemini-1.5-flash',
@@ -131,7 +119,7 @@ export async function generateContent(
   for (let i = 0; i < executionQueue.length; i++) {
     const currentModel = executionQueue[i];
     
-    // Attempt A: Direct REST call
+    // 1. Try direct browser REST API
     try {
       const result = await callGeminiDirectRest(
         customApiKey, 
@@ -146,7 +134,7 @@ export async function generateContent(
       lastErrorMsg = directErr.message || String(directErr);
       console.warn(`[AI Direct Fetch Failed] Model ${currentModel}:`, lastErrorMsg);
 
-      // Attempt B: Proxy call via /api/generate as secondary
+      // 2. Try proxy endpoint (/api/generate)
       try {
         const proxyResult = await callGeminiProxyApi(
           customApiKey, 
@@ -162,7 +150,6 @@ export async function generateContent(
         console.warn(`[AI Proxy Failed] Model ${currentModel}:`, lastErrorMsg);
       }
 
-      // If next model exists, notify retry
       if (i < executionQueue.length - 1) {
         const nextModel = executionQueue[i + 1];
         if (onModelRetry) {
@@ -172,12 +159,11 @@ export async function generateContent(
     }
   }
 
-  // If initial queue failed, try fetching dynamic list from Google and retry once with first discovered model
+  // Final fallback with auto-discovered live models
   try {
     const liveModels = await fetchAvailableModels(customApiKey);
     if (liveModels.length > 0 && !executionQueue.includes(liveModels[0])) {
-      const liveModel = liveModels[0];
-      const liveResult = await callGeminiDirectRest(customApiKey, liveModel, prompt, systemInstruction);
+      const liveResult = await callGeminiDirectRest(customApiKey, liveModels[0], prompt, systemInstruction);
       if (liveResult && liveResult.trim()) {
         return liveResult;
       }
@@ -191,6 +177,7 @@ export async function generateContent(
 
 /**
  * Direct browser REST API call to Google Generative Language v1beta API
+ * Automatically includes responseMimeType: "application/json" for JSON requests
  */
 async function callGeminiDirectRest(
   apiKey: string, 
@@ -198,13 +185,23 @@ async function callGeminiDirectRest(
   prompt: string, 
   systemInstruction?: string
 ): Promise<string> {
-  // Normalize model name
   const cleanModel = model.replace(/^models\//, '');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
+  const isJsonExpected = prompt.includes('JSON') || prompt.includes('json');
+
   const fullPromptText = systemInstruction 
-    ? `[Hướng dẫn chuyên môn]: ${systemInstruction}\n\n[Nhiệm vụ]:\n${prompt}`
+    ? `${systemInstruction}\n\n${prompt}`
     : prompt;
+
+  const generationConfig: any = {
+    temperature: 0.7,
+    topP: 0.95
+  };
+
+  if (isJsonExpected) {
+    generationConfig.responseMimeType = 'application/json';
+  }
 
   const payload = {
     contents: [
@@ -214,10 +211,7 @@ async function callGeminiDirectRest(
         ]
       }
     ],
-    generationConfig: {
-      temperature: 0.7,
-      topP: 0.95
-    }
+    generationConfig
   };
 
   const response = await fetch(url, {
@@ -278,23 +272,55 @@ async function callGeminiProxyApi(
 }
 
 /**
- * Utility to extract clean JSON object from Gemini markdown output
+ * Robust, fault-tolerant JSON parser & extractor from AI outputs
  */
 export function cleanAndParseJson<T>(rawText: string): T {
-  let cleaned = rawText
-    .replace(/```json/gi, '')
-    .replace(/```/g, '')
-    .trim();
-
-  try {
-    return JSON.parse(cleaned) as T;
-  } catch (e) {
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start !== -1 && end !== -1 && end > start) {
-      const extracted = cleaned.substring(start, end + 1);
-      return JSON.parse(extracted) as T;
-    }
-    throw new Error('Không thể phân tích dữ liệu JSON trả về từ AI: ' + (e as Error).message);
+  if (!rawText || !rawText.trim()) {
+    throw new Error('Dữ liệu trả về từ AI rỗng.');
   }
+
+  let text = rawText.trim();
+
+  // 1. Direct parse attempt
+  try {
+    return JSON.parse(text) as T;
+  } catch (e) {}
+
+  // 2. Extract from markdown code fence ```json ... ``` or ``` ... ```
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim()) as T;
+    } catch (e) {
+      text = codeBlockMatch[1].trim();
+    }
+  }
+
+  // 3. Extract between first '{' and last '}'
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    let candidate = text.substring(firstBrace, lastBrace + 1);
+    
+    // Attempt parse extracted candidate
+    try {
+      return JSON.parse(candidate) as T;
+    } catch (e) {}
+
+    // 4. Sanitize common LLM JSON syntax imperfections
+    try {
+      // Replace smart quotes
+      candidate = candidate
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2018\u2019]/g, "'");
+
+      // Remove trailing commas before } or ]
+      candidate = candidate.replace(/,\s*([}\]])/g, '$1');
+
+      return JSON.parse(candidate) as T;
+    } catch (e) {}
+  }
+
+  throw new Error('Không thể phân tích dữ liệu JSON trả về từ AI: ' + rawText.substring(0, 100));
 }

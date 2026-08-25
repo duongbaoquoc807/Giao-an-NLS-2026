@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Settings, ExternalLink, Key, Sparkles, BookOpen, Zap } from 'lucide-react';
+import { Settings, ExternalLink, Key, Sparkles, BookOpen, Zap, Star } from 'lucide-react';
 
 interface HeaderProps {
   onOpenSettings: () => void;
 }
 
 export function Header({ onOpenSettings }: HeaderProps) {
-  const [currentModel, setCurrentModel] = useState('gemini-2.5-flash');
+  const [currentModel, setCurrentModel] = useState('gemini-3.7-flash');
 
   useEffect(() => {
     const updateModelDisplay = () => {
-      const model = localStorage.getItem('selected_gemini_model') || 'gemini-2.5-flash';
+      const model = localStorage.getItem('selected_gemini_model') || 'gemini-3.7-flash';
       setCurrentModel(model);
     };
     updateModelDisplay();
@@ -19,13 +19,14 @@ export function Header({ onOpenSettings }: HeaderProps) {
   }, []);
 
   const getDisplayModelName = (modelId: string) => {
+    if (modelId === 'gemini-3.7-flash') return 'Gemini 3.7 Flash';
+    if (modelId === 'gemini-3.6-flash') return 'Gemini 3.6 Flash';
     if (modelId === 'gemini-2.5-flash') return 'Gemini 2.5 Flash';
-    if (modelId === 'gemini-2.5-pro') return 'Gemini 2.5 Pro';
     if (modelId === 'gemini-2.0-flash') return 'Gemini 2.0 Flash';
-    if (modelId === 'gemini-2.0-pro') return 'Gemini 2.0 Pro';
-    if (modelId.includes('3-flash')) return 'Gemini 3 Flash';
+    if (modelId.includes('3.7')) return 'Gemini 3.7 Flash';
+    if (modelId.includes('3.6')) return 'Gemini 3.6 Flash';
     if (modelId.includes('pro')) return 'Gemini Pro';
-    return 'Gemini 2.5 Flash';
+    return 'Gemini 3.7 Flash';
   };
 
   return (
@@ -62,8 +63,8 @@ export function Header({ onOpenSettings }: HeaderProps) {
         >
           <Key size={14} className="text-orange-400" />
           <span>Settings (API Key)</span>
-          <span className="text-[10px] px-2 py-0.5 bg-slate-900 text-emerald-400 rounded-md font-semibold border border-slate-700 flex items-center gap-1">
-            <Zap size={11} className="text-amber-400 fill-amber-400" />
+          <span className="text-[10px] px-2 py-0.5 bg-slate-900 text-amber-400 rounded-md font-bold border border-slate-700 flex items-center gap-1">
+            <Star size={11} className="text-amber-400 fill-amber-400" />
             {getDisplayModelName(currentModel)}
           </span>
         </button>

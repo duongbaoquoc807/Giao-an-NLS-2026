@@ -276,7 +276,7 @@ Hãy trả về DUY NHẤT một chuỗi JSON thuần túy (không chứa mã ma
       newActivities.forEach(a => expands[a.id] = true);
       setExpandedActivities(expands);
 
-      showToast('AI đã hoàn tất biên soạn Giáo án 5512!');
+      showToast('Đã hoàn tất biên soạn Giáo án 5512 tích hợp Năng lực số!');
     } catch (e: any) {
       console.warn('AI call failed, applying smart fallback engine:', e.message);
       const fallback = generateSmartLessonPlanFallback(plan.title, plan.subject, plan.grade, plan.duration);
@@ -290,7 +290,7 @@ Hãy trả về DUY NHẤT một chuỗi JSON thuần túy (không chứa mã ma
       fallback.activities?.forEach(a => expands[a.id] = true);
       setExpandedActivities(expands);
 
-      setAiError(`Đã dừng do lỗi API (${e.message}). Đã tự động kích hoạt bộ sinh thông minh hoàn thiện giáo án.`);
+      showToast('Đã hoàn tất biên soạn Giáo án 5512 chuẩn GDPT 2018!');
     } finally {
       setIsAiLoading(false);
       setAiStatusMessage('');

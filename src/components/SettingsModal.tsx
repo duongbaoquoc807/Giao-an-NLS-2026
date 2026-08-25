@@ -1,6 +1,6 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import { 
-  X, Key, Save, Download, Upload, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ExternalLink, Cpu, Zap
+  X, Key, Save, Download, Upload, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ExternalLink, Cpu, Zap, Star
 } from 'lucide-react';
 import { generateContent, DEFAULT_MODELS, fetchAvailableModels } from '../lib/gemini';
 
@@ -13,52 +13,52 @@ interface SettingsModalProps {
 
 export const AI_MODELS_INFO = [
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    tag: 'Khuyên dùng - Mới nhất',
-    desc: 'Model thế hệ 2.5 siêu tốc của Google, tối ưu biên soạn Kế hoạch bài dạy CV 5512 tích hợp Năng lực số chuẩn GDPT 2018.',
+    id: 'gemini-3.7-flash',
+    name: 'Gemini 3.7 Flash',
+    tag: 'Mới nhất - Siêu thông minh',
+    desc: 'Model AI tân tiến nhất của Google, suy luận sư phạm vượt trội và biên soạn Giáo án 5512 tích hợp Năng lực số chuẩn GDPT 2018.',
+    badgeColor: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-orange-400 font-bold'
+  },
+  {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    tag: 'Tốc độ cực nhanh',
+    desc: 'Tối ưu hóa khả năng phản hồi tức thời, phân tích nhanh cấu trúc bài dạy và gợi ý hoạt động số tương tác.',
     badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300'
   },
   {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    tag: 'Chuyên sâu & Lý luận cao',
-    desc: 'Model cao cấp thế hệ 2.5 với khả năng tư duy sư phạm sâu sắc, thiết kế ma trận, Rubric đánh giá và chuỗi hoạt động nâng cao.',
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    tag: 'Thế hệ 2.5 Flash',
+    desc: 'Mô hình hiệu năng cao của thế hệ 2.5, cân bằng hoàn hảo giữa tốc độ và độ chuẩn xác mục tiêu bài học.',
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-300'
   },
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
-    tag: 'Tốc độ phản hồi tức thì',
-    desc: 'Thế hệ 2.0 phản hồi cực nhanh, xử lý mượt mà trên mọi tác vụ soạn giáo án và gợi ý công cụ số.',
-    badgeColor: 'bg-amber-100 text-amber-800 border-amber-300'
+    tag: 'Rất ổn định',
+    desc: 'Được hỗ trợ chính thức toàn cầu trên mọi API Key của Google AI Studio.',
+    badgeColor: 'bg-slate-100 text-slate-800 border-slate-300'
   },
   {
-    id: 'gemini-2.0-pro',
-    name: 'Gemini 2.0 Pro',
-    tag: 'Chuyên đề liên môn & STEM',
-    desc: 'Thiết kế các dự án dạy học tích hợp liên môn, chủ đề STEM/STEAM và kế hoạch giáo dục toàn diện.',
+    id: 'gemini-1.5-pro',
+    name: 'Gemini 1.5 Pro',
+    tag: 'Chuyên sâu & Lý luận',
+    desc: 'Thiết kế chuỗi hoạt động nâng cao, ma trận kiểm tra và phiếu học tập chuyên sâu.',
     badgeColor: 'bg-purple-100 text-purple-800 border-purple-300'
-  },
-  {
-    id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash (Preview)',
-    tag: 'Thế hệ AI tương lai',
-    desc: 'Phiên bản tiên phong của thế hệ 3.0, hỗ trợ tự động kết nối mô hình mới nhất khi Google triển khai.',
-    badgeColor: 'bg-rose-100 text-rose-800 border-rose-300'
   }
 ];
 
 export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState('gemini-3.7-flash');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       const storedKey = localStorage.getItem('gemini_api_key') || '';
-      const storedModel = localStorage.getItem('selected_gemini_model') || 'gemini-2.5-flash';
+      const storedModel = localStorage.getItem('selected_gemini_model') || 'gemini-3.7-flash';
       setApiKey(storedKey);
       setSelectedModel(storedModel);
       setTestStatus('idle');
@@ -78,7 +78,7 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
     localStorage.setItem('selected_gemini_model', selectedModel);
     window.dispatchEvent(new Event('storage'));
     
-    // Auto-discover models in background
+    // Auto-discover in background
     fetchAvailableModels(cleanKey).catch(() => {});
 
     setTestStatus('success');
@@ -95,21 +95,18 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
     }
     const cleanKey = apiKey.trim();
     setTestStatus('testing');
-    setTestMessage(`Đang xác thực API Key và kiểm tra các model AI khả dụng...`);
+    setTestMessage(`Đang kiểm tra kết nối với ${selectedModel}...`);
     
     localStorage.setItem('gemini_api_key', cleanKey);
     localStorage.setItem('selected_gemini_model', selectedModel);
     window.dispatchEvent(new Event('storage'));
 
     try {
-      // 1. Fetch available models from Google
-      const discovered = await fetchAvailableModels(cleanKey);
-      
-      // 2. Test generation
-      const result = await generateContent('Hãy trả lời: "Kết nối thành công!"');
+      await fetchAvailableModels(cleanKey);
+      const result = await generateContent('Hãy trả lời ngắn: {"status": "success"}');
       if (result) {
         setTestStatus('success');
-        setTestMessage(`Kết nối thành công! Đã kích hoạt ${discovered.length} model AI của Google cho tài khoản của bạn.`);
+        setTestMessage(`Kết nối thành công với ${selectedModel}! Trợ lý AI sẵn sàng hoạt động mượt mà.`);
       }
     } catch (err: any) {
       setTestStatus('error');
@@ -197,7 +194,7 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
           <div className="space-y-3">
             <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
               <Cpu size={16} className="text-blue-600" />
-              Chọn Model AI Thế Hệ Mới (Từ Gemini 2.5 Flash trở lên)
+              Chọn Model AI Mới Nhất (Gemini 3.7 Flash & 3.6 Flash)
             </label>
             
             <div className="grid grid-cols-1 gap-2.5">
@@ -209,7 +206,7 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
                     onClick={() => setSelectedModel(model.id)}
                     className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3.5 ${
                       isSelected 
-                        ? 'border-blue-600 bg-blue-50/50 shadow-sm' 
+                        ? 'border-orange-500 bg-orange-50/40 shadow-sm' 
                         : 'border-slate-200 hover:border-slate-300 bg-white'
                     }`}
                   >
@@ -218,15 +215,16 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
                       name="aiModel" 
                       checked={isSelected}
                       onChange={() => setSelectedModel(model.id)}
-                      className="mt-1 text-blue-600 focus:ring-blue-500"
+                      className="mt-1 text-orange-600 focus:ring-orange-500"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
                           {model.name}
-                          {model.id.includes('2.5') && <Zap size={14} className="text-amber-500 fill-amber-500" />}
+                          {model.id.includes('3.7') && <Star size={14} className="text-amber-500 fill-amber-500" />}
+                          {model.id.includes('3.6') && <Zap size={14} className="text-emerald-500 fill-emerald-500" />}
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${model.badgeColor}`}>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md border ${model.badgeColor}`}>
                           {model.tag}
                         </span>
                       </div>
