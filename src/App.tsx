@@ -10,6 +10,7 @@ import { LessonPlan } from './types';
 export default function App() {
   const [currentView, setCurrentView] = useState<'integrate' | 'dashboard' | 'builder'>('integrate');
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
+  const [originalUploadedFile, setOriginalUploadedFile] = useState<File | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMandatoryKey, setIsMandatoryKey] = useState(false);
 
@@ -23,6 +24,7 @@ export default function App() {
 
   const handleCreateNew = () => {
     setActiveLessonId(null);
+    setOriginalUploadedFile(null);
     setCurrentView('builder');
   };
 
@@ -31,8 +33,11 @@ export default function App() {
     setCurrentView('builder');
   };
 
-  const handleIntegrationComplete = (enrichedPlan: LessonPlan) => {
+  const handleIntegrationComplete = (enrichedPlan: LessonPlan, originalFile?: File | null) => {
     setActiveLessonId(enrichedPlan.id);
+    if (originalFile) {
+      setOriginalUploadedFile(originalFile);
+    }
     setCurrentView('builder');
   };
 
@@ -67,6 +72,7 @@ export default function App() {
           {currentView === 'builder' && (
             <LessonBuilder 
               lessonId={activeLessonId} 
+              originalFile={originalUploadedFile}
               onBack={() => setCurrentView('dashboard')} 
               onOpenSettings={() => { setIsMandatoryKey(false); setIsSettingsOpen(true); }}
             />

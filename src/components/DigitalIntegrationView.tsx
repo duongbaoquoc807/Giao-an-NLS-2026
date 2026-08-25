@@ -1,15 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { 
   Upload, FileText, CheckCircle2, Sparkles, RefreshCw, X, FileUp, 
-  HelpCircle, Laptop, ArrowRight, Download, BookOpen, AlertCircle, Eye, ShieldCheck, Zap
+  HelpCircle, Laptop, ArrowRight, Download, BookOpen, AlertCircle, Eye, ShieldCheck, Zap, FileCheck, Layers
 } from 'lucide-react';
 import { parseDocumentFile } from '../lib/fileParser';
 import { integrateDigitalCompetenciesWithAI } from '../lib/digitalIntegrator';
 import { LessonPlan } from '../types';
-import { exportToDocx } from '../lib/exportDocx';
+import { exportToDocx, exportIntegratedDocxFromOriginal } from '../lib/exportDocx';
 
 interface DigitalIntegrationViewProps {
-  onIntegrationComplete: (plan: LessonPlan) => void;
+  onIntegrationComplete: (plan: LessonPlan, originalFile?: File | null) => void;
   onOpenSettings: () => void;
 }
 
@@ -29,6 +29,9 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
   const [statusStep, setStatusStep] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Result Success State
+  const [completedPlan, setCompletedPlan] = useState<LessonPlan | null>(null);
+
   // File Inputs Ref
   const lessonInputRef = useRef<HTMLInputElement>(null);
   const ppctInputRef = useRef<HTMLInputElement>(null);
@@ -41,6 +44,7 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
     if (type === 'ppct') setPpctFile(file);
     if (type === 'nls') setNlsFile(file);
     setErrorMessage(null);
+    setCompletedPlan(null);
   };
 
   const handleStartIntegration = async () => {
@@ -51,7 +55,8 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
 
     setIsProcessing(true);
     setErrorMessage(null);
-    setStatusStep('Đang đọc và giải nén nội dung File Giáo án...');
+    setCompletedPlan(null);
+    setStatusStep('Đang đọc và phân tích cấu trúc, bảng biểu File Giáo án...');
 
     try {
       // 1. Parse Lesson Plan file
@@ -75,7 +80,7 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
       }
 
       // 4. Run AI Integration
-      setStatusStep('AI (Gemini 3.7 Flash) đang phân tích và tự động đính kèm Năng lực số vào các hoạt động...');
+      setStatusStep('AI (Gemini 3.7 Flash) đang phân tích và đính kèm Năng lực số vào các hoạt động...');
       const enrichedPlan = await integrateDigitalCompetenciesWithAI({
         lessonPlanText: lessonText,
         fileName: lessonFile.name,
@@ -93,10 +98,8 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
       const updated = [enrichedPlan, ...plans.filter(p => p.id !== enrichedPlan.id)];
       localStorage.setItem('lesson_plans', JSON.stringify(updated));
 
-      setStatusStep('Đã tích hợp thành công! Đang chuyển hướng...');
-      setTimeout(() => {
-        onIntegrationComplete(enrichedPlan);
-      }, 600);
+      setCompletedPlan(enrichedPlan);
+      setStatusStep('Đã hoàn tất tích hợp Năng lực số!');
 
     } catch (err: any) {
       console.error('Integration failed:', err);
@@ -104,6 +107,16 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleExportOriginalWithNls = async () => {
+    if (!completedPlan || !lessonFile) return;
+    await exportIntegratedDocxFromOriginal(lessonFile, completedPlan);
+  };
+
+  const handleExportStandardDocx = async () => {
+    if (!completedPlan) return;
+    await exportToDocx(completedPlan);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -135,6 +148,67 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
             <button onClick={() => setErrorMessage(null)} className="text-rose-500 hover:text-rose-800 font-bold">
               ✕
             </button>
+          </div>
+        )}
+
+        {/* SUCCESS COMPLETED CARD & DOWNLOAD OPTIONS */}
+        {completedPlan && (
+          <div className="bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white p-6 md:p-8 rounded-3xl shadow-xl border border-emerald-500/30 space-y-5 animate-in fade-in zoom-in-95 duration-300">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 border border-emerald-400/40 rounded-2xl flex items-center justify-center shrink-0">
+                  <FileCheck size={26} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-emerald-500 text-slate-950 font-extrabold text-[10px] px-2 py-0.5 rounded-full uppercase">
+                      Hoàn thành tích hợp 100%
+                    </span>
+                    <span className="text-xs text-emerald-300 font-medium">CV 5512 • Năng lực số</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white mt-1">
+                    {completedPlan.title}
+                  </h3>
+                  <p className="text-xs text-emerald-200/80">
+                    Đã đính kèm Năng lực số (NLS 1 - NLS 6), công cụ số và 4 bước tổ chức dạy học số.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                {/* 1. Export preserving original DOCX layout */}
+                {lessonFile && lessonFile.name.endsWith('.docx') && (
+                  <button
+                    onClick={handleExportOriginalWithNls}
+                    className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                    title="Giữ nguyên 100% định dạng, cột, bảng biểu và font chữ của file gốc"
+                  >
+                    <Download size={16} />
+                    <span>Xuất Word (Giữ 100% định dạng gốc)</span>
+                  </button>
+                )}
+
+                {/* 2. Export standard 2-column docx */}
+                <button
+                  onClick={handleExportStandardDocx}
+                  className="px-4 py-2.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <Download size={16} />
+                  <span>Xuất Word (Mẫu 2 cột chuẩn 5512)</span>
+                </button>
+
+                {/* 3. Open editor */}
+                <button
+                  onClick={() => onIntegrationComplete(completedPlan, lessonFile)}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                >
+                  <Eye size={16} />
+                  <span>Xem & Chỉnh sửa chi tiết</span>
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -220,7 +294,7 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                <h3 className="font-bold text-base text-slate-900">Tài liệu đầu vào</h3>
+                <h3 className="font-bold text-base text-slate-900">Tài liệu đầu vào (Kéo thả / Đính kèm)</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -249,7 +323,7 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
                           {lessonFile.name}
                         </div>
                         <div className="text-[10px] text-slate-500">
-                          {formatFileSize(lessonFile.size)} • Đã sẵn sàng phân tích
+                          {formatFileSize(lessonFile.size)} • Giữ nguyên cấu trúc định dạng
                         </div>
                       </div>
                       <div className="flex justify-center gap-2 pt-1">
@@ -278,7 +352,7 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-800">Tải lên file Giáo án</div>
-                        <div className="text-[10px] text-slate-500">Định dạng hỗ trợ: .docx, .pdf, .txt</div>
+                        <div className="text-[10px] text-slate-500">Hỗ trợ: .docx, .pdf, .txt</div>
                       </div>
                     </div>
                   )}
@@ -425,21 +499,21 @@ export function DigitalIntegrationView({ onIntegrationComplete, onOpenSettings }
                   <span className="w-5 h-5 rounded-full bg-emerald-500/30 border border-emerald-400 text-emerald-200 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                     2
                   </span>
-                  <span><strong>Bắt buộc:</strong> Kéo thả hoặc tải lên file giáo án (<strong>.docx</strong>, <strong>.pdf</strong>, <strong>.txt</strong>).</span>
+                  <span><strong>Bắt buộc:</strong> Kéo thả file giáo án (.docx, .pdf, .txt). Hệ thống <strong>giữ 100% định dạng, cột bảng biểu của file gốc</strong>.</span>
                 </li>
 
                 <li className="flex items-start gap-2.5">
                   <span className="w-5 h-5 rounded-full bg-amber-500/30 border border-amber-400 text-amber-200 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                     3
                   </span>
-                  <span><strong>Tùy chọn:</strong> Tải file PPCT nếu muốn AI tham khảo năng lực cụ thể của trường.</span>
+                  <span><strong>Tùy chọn:</strong> Tải file PPCT và Khung NLS riêng nếu muốn AI đối chiếu cụ thể.</span>
                 </li>
 
                 <li className="flex items-start gap-2.5">
                   <span className="w-5 h-5 rounded-full bg-purple-500/30 border border-purple-400 text-purple-200 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                     4
                   </span>
-                  <span>Nhấn <strong>"Tự động Tích hợp NLS với AI"</strong> để AI đọc và tự đính kèm Năng lực số vào giáo án.</span>
+                  <span>Nhấn <strong>"Tự động Tích hợp NLS với AI"</strong> để AI đọc và chèn Năng lực số vào các vị trí chuẩn.</span>
                 </li>
               </ol>
             </div>

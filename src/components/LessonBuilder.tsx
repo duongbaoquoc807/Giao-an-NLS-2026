@@ -8,7 +8,7 @@ import {
   LessonPlan, TeachingActivity, STEP_LABELS, 
   DIGITAL_COMPETENCY_DOMAINS, POPULAR_DIGITAL_TOOLS 
 } from '../types';
-import { exportToDocx } from '../lib/exportDocx';
+import { exportToDocx, exportIntegratedDocxFromOriginal } from '../lib/exportDocx';
 import { AIAssistant } from './AIAssistant';
 import { generateContent, cleanAndParseJson } from '../lib/gemini';
 import { SAMPLE_LESSON_PLANS } from '../data/sampleLessons';
@@ -16,11 +16,12 @@ import { generateSmartLessonPlanFallback } from '../lib/smartTemplateGenerator';
 
 interface LessonBuilderProps {
   lessonId: string | null;
+  originalFile?: File | null;
   onBack: () => void;
   onOpenSettings?: () => void;
 }
 
-export function LessonBuilder({ lessonId, onBack, onOpenSettings }: LessonBuilderProps) {
+export function LessonBuilder({ lessonId, originalFile, onBack, onOpenSettings }: LessonBuilderProps) {
   const [plan, setPlan] = useState<LessonPlan>({
     id: uuidv4(),
     title: '',
@@ -556,8 +557,15 @@ Trả về JSON ngắn gọn:
           </button>
 
           <button 
-            onClick={() => exportToDocx(plan)}
+            onClick={async () => {
+              if (originalFile && originalFile.name.endsWith('.docx')) {
+                await exportIntegratedDocxFromOriginal(originalFile, plan);
+              } else {
+                await exportToDocx(plan);
+              }
+            }}
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+            title={originalFile ? "Xuất Word giữ 100% định dạng file gốc" : "Xuất Word mẫu chuẩn CV 5512"}
           >
             <Download size={15} />
             <span>Xuất Word</span>
