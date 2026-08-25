@@ -55,6 +55,13 @@ export default function App() {
         </main>
       </div>
 
+      {/* Footer Copyright */}
+      <footer className="bg-slate-900 text-slate-400 text-xs py-2 px-6 border-t border-slate-800 text-center shrink-0 z-20 flex items-center justify-center gap-1.5 shadow-inner">
+        <span className="text-slate-300 font-medium">
+          Bản quyền thuộc về Thầy Dương Bảo Quốc . Tổ Toán - Tin, Trường THPT Khánh Lâm - Cà Mau
+        </span>
+      </footer>
+
       <SettingsModal 
         isOpen={isSettingsOpen} 
         isMandatory={isMandatoryKey}

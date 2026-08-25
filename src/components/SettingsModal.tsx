@@ -1,6 +1,6 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import { 
-  X, Key, Save, Download, Upload, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ExternalLink, Cpu 
+  X, Key, Save, Download, Upload, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ExternalLink, Cpu, Zap, Flame
 } from 'lucide-react';
 import { generateContent, VALID_FALLBACK_MODELS } from '../lib/gemini';
 
@@ -13,45 +13,52 @@ interface SettingsModalProps {
 
 export const AI_MODELS_INFO = [
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    tag: 'Khuyên dùng - Nhanh nhất',
-    desc: 'Model thế hệ mới của Google, tốc độ phản hồi cực nhanh, biên soạn Giáo án 5512 & Năng lực số tối ưu.',
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    tag: 'Khuyên dùng - Mới nhất',
+    desc: 'Model thế hệ 2.5 siêu tốc của Google, tối ưu biên soạn Kế hoạch bài dạy CV 5512 tích hợp Năng lực số chuẩn GDPT 2018.',
     badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300'
   },
   {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    tag: 'Rất ổn định',
-    desc: 'Model tiêu chuẩn toàn cầu, độ ổn định cao và tương thích trên mọi tài khoản Google AI Studio.',
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    tag: 'Chuyên sâu & Lý luận cao',
+    desc: 'Model cao cấp thế hệ 2.5 với khả năng tư duy sư phạm sâu sắc, thiết kế ma trận, Rubric đánh giá và chuỗi hoạt động nâng cao.',
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-300'
   },
   {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    tag: 'Chuyên sâu Sư phạm',
-    desc: 'Lý luận sư phạm sâu sắc, thiết kế các tiến trình dạy học phức tạp và phiếu học tập chi tiết.',
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    tag: 'Tốc độ phản hồi tức thì',
+    desc: 'Thế hệ 2.0 phản hồi cực nhanh, xử lý mượt mà trên mọi tác vụ soạn giáo án và gợi ý công cụ số.',
+    badgeColor: 'bg-amber-100 text-amber-800 border-amber-300'
+  },
+  {
+    id: 'gemini-2.0-pro',
+    name: 'Gemini 2.0 Pro',
+    tag: 'Chuyên đề liên môn & STEM',
+    desc: 'Thiết kế các dự án dạy học tích hợp liên môn, chủ đề STEM/STEAM và kế hoạch giáo dục toàn diện.',
     badgeColor: 'bg-purple-100 text-purple-800 border-purple-300'
   },
   {
     id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash (Alias)',
-    tag: 'Tự động tương thích',
-    desc: 'Tự động ánh xạ sang Gemini 2.0 Flash, hỗ trợ chuyển đổi mượt mà theo hướng dẫn.',
-    badgeColor: 'bg-amber-100 text-amber-800 border-amber-300'
+    name: 'Gemini 3 Flash (Preview)',
+    tag: 'Thế hệ AI tương lai',
+    desc: 'Phiên bản tiên phong của thế hệ 3.0, hỗ trợ tự động kết nối mô hình mới nhất khi Google triển khai.',
+    badgeColor: 'bg-rose-100 text-rose-800 border-rose-300'
   }
 ];
 
 export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       const storedKey = localStorage.getItem('gemini_api_key') || '';
-      const storedModel = localStorage.getItem('selected_gemini_model') || 'gemini-2.0-flash';
+      const storedModel = localStorage.getItem('selected_gemini_model') || 'gemini-2.5-flash';
       setApiKey(storedKey);
       setSelectedModel(storedModel);
       setTestStatus('idle');
@@ -68,6 +75,7 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
     }
     localStorage.setItem('gemini_api_key', apiKey.trim());
     localStorage.setItem('selected_gemini_model', selectedModel);
+    window.dispatchEvent(new Event('storage'));
     setTestStatus('success');
     setTestMessage('Đã lưu Cấu hình Model AI & API Key thành công!');
     setTimeout(() => {
@@ -85,12 +93,13 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
     
     localStorage.setItem('gemini_api_key', apiKey.trim());
     localStorage.setItem('selected_gemini_model', selectedModel);
+    window.dispatchEvent(new Event('storage'));
 
     try {
-      const result = await generateContent('Hãy trả lời "Kết nối thành công!"');
+      const result = await generateContent('Hãy trả lời ngắn gọn: "Kết nối thành công!"');
       if (result) {
         setTestStatus('success');
-        setTestMessage(`Kết nối thành công với ${selectedModel}! Trợ lý AI sẵn sàng hoạt động.`);
+        setTestMessage(`Kết nối thành công với ${selectedModel}! Trợ lý AI sẵn sàng biên soạn giáo án.`);
       }
     } catch (err: any) {
       setTestStatus('error');
@@ -139,10 +148,10 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
         {/* Modal Header */}
         <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
           <div className="flex items-center gap-2.5 font-bold text-lg">
-            <div className="w-8 h-8 rounded-lg bg-orange-500 text-white flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-md shadow-orange-500/30">
               <Key size={18} />
             </div>
-            <span>Thiết lập Model AI & API Key</span>
+            <span>Thiết lập Model AI Thế Hệ Mới & API Key</span>
           </div>
           {!isMandatory && (
             <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
@@ -178,7 +187,7 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
           <div className="space-y-3">
             <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
               <Cpu size={16} className="text-blue-600" />
-              Chọn Model AI Ưu Tiên (Tự động Retry Fallback khi lỗi)
+              Chọn Model AI Thế Hệ Mới (Từ Gemini 2.5 Flash trở lên)
             </label>
             
             <div className="grid grid-cols-1 gap-2.5">
@@ -203,7 +212,10 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-sm text-slate-900">{model.name}</span>
+                        <span className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                          {model.name}
+                          {model.id.includes('2.5') && <Zap size={14} className="text-amber-500 fill-amber-500" />}
+                        </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${model.badgeColor}`}>
                           {model.tag}
                         </span>
@@ -216,7 +228,7 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
               })}
             </div>
             <p className="text-[11px] text-slate-500 italic">
-              * Quy trình Fallback tự động: Khi model ưu tiên gặp lỗi quota (429), hệ thống tự động thử lại lần lượt qua: <strong>gemini-2.0-flash</strong> $\rightarrow$ <strong>gemini-1.5-flash</strong> $\rightarrow$ <strong>gemini-1.5-pro</strong>.
+              * Quy trình Fallback tự động thông minh: Hệ thống ưu tiên model đã chọn và tự động chuyển đổi mượt mà khi model đạt giới hạn hạn ngạch (quota).
             </p>
           </div>
 

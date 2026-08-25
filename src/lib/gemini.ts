@@ -1,19 +1,37 @@
 export const VALID_FALLBACK_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
   'gemini-2.0-flash',
+  'gemini-2.0-pro',
+  'gemini-3-flash-preview',
   'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-flash-8b'
+  'gemini-1.5-pro'
 ];
 
 /**
- * Maps UI model aliases to real working Google Gemini models
+ * Returns alternative candidate model IDs for fallback retry
  */
-export function mapModelAlias(modelName: string): string {
-  if (modelName === 'gemini-3-flash-preview' || modelName === 'gemini-2.5-flash') return 'gemini-2.0-flash';
-  if (modelName === 'gemini-3-pro-preview' || modelName === 'gemini-2.5-pro') return 'gemini-1.5-pro';
-  if (modelName === 'gemini-2.0-flash-lite') return 'gemini-2.0-flash-lite-preview-02-05';
-  return modelName || 'gemini-2.0-flash';
+export function getFallbackCandidates(modelName: string): string[] {
+  const clean = (modelName || '').trim().toLowerCase();
+  
+  if (clean.includes('pro')) {
+    return [
+      'gemini-2.5-pro',
+      'gemini-2.0-pro-exp-02-05',
+      'gemini-2.0-flash',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash'
+    ];
+  }
+  
+  // Default flash fallback queue
+  return [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite-preview-02-05',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro'
+  ];
 }
 
 export async function generateContent(
@@ -21,64 +39,60 @@ export async function generateContent(
   systemInstruction?: string,
   onModelRetry?: (failedModel: string, nextModel: string, errorMsg: string) => void
 ): Promise<string> {
-  const customApiKey = localStorage.getItem('gemini_api_key') || '';
+  const customApiKey = (localStorage.getItem('gemini_api_key') || '').trim();
 
-  if (!customApiKey.trim()) {
+  if (!customApiKey) {
     throw new Error('Chưa thiết lập Gemini API Key. Vui lòng nhấp vào nút "Settings (API Key)" trên Header để dán API Key.');
   }
 
-  const selectedModelAlias = localStorage.getItem('selected_gemini_model') || 'gemini-2.0-flash';
-  const primaryModel = mapModelAlias(selectedModelAlias);
+  const selectedModel = localStorage.getItem('selected_gemini_model') || 'gemini-2.5-flash';
+  const candidates = getFallbackCandidates(selectedModel);
 
-  // Build model fallback queue starting with primary model
-  const modelQueue = [
-    primaryModel,
-    ...VALID_FALLBACK_MODELS.map(mapModelAlias).filter(m => m !== primaryModel)
-  ];
-
-  // Remove duplicates
-  const uniqueModelQueue = Array.from(new Set(modelQueue));
+  // Build model queue starting with selected model
+  const modelQueue = Array.from(new Set([
+    selectedModel,
+    ...candidates
+  ]));
 
   let lastErrorMsg = '';
 
-  for (let i = 0; i < uniqueModelQueue.length; i++) {
-    const currentModel = uniqueModelQueue[i];
+  for (let i = 0; i < modelQueue.length; i++) {
+    const currentModel = modelQueue[i];
+    
+    // 1. Try direct browser REST API
     try {
-      // 1. Try Direct Browser Fetch to Google REST API (supports v1beta & v1)
-      const directResult = await callGeminiDirectRest(
-        customApiKey.trim(), 
+      const result = await callGeminiDirectRest(
+        customApiKey, 
         currentModel, 
         prompt, 
         systemInstruction
       );
-
-      if (directResult) {
-        return directResult;
+      if (result && result.trim()) {
+        return result;
       }
-
-    } catch (directError: any) {
-      lastErrorMsg = directError.message || String(directError);
+    } catch (directErr: any) {
+      lastErrorMsg = directErr.message || String(directErr);
       console.warn(`[AI Direct Fetch Failed] Model ${currentModel}:`, lastErrorMsg);
 
-      // 2. Try Fallback via Proxy Endpoint (/api/generate)
+      // 2. Try proxy endpoint (/api/generate) as backup
       try {
         const proxyResult = await callGeminiProxyApi(
-          customApiKey.trim(), 
+          customApiKey, 
           currentModel, 
           prompt, 
           systemInstruction
         );
-        if (proxyResult) {
+        if (proxyResult && proxyResult.trim()) {
           return proxyResult;
         }
-      } catch (proxyError: any) {
-        lastErrorMsg = proxyError.message || lastErrorMsg;
-        console.warn(`[AI Proxy API Failed] Model ${currentModel}:`, lastErrorMsg);
+      } catch (proxyErr: any) {
+        lastErrorMsg = proxyErr.message || lastErrorMsg;
+        console.warn(`[AI Proxy Failed] Model ${currentModel}:`, lastErrorMsg);
       }
 
-      // If next model exists, notify retry
-      if (i < uniqueModelQueue.length - 1) {
-        const nextModel = uniqueModelQueue[i + 1];
+      // Notify caller if retrying with next model
+      if (i < modelQueue.length - 1) {
+        const nextModel = modelQueue[i + 1];
         if (onModelRetry) {
           onModelRetry(currentModel, nextModel, lastErrorMsg);
         }
@@ -86,13 +100,11 @@ export async function generateContent(
     }
   }
 
-  // If all models in queue failed, throw exact API error
   throw new Error(lastErrorMsg || 'Tất cả các model Gemini đều thất bại khi xử lý.');
 }
 
 /**
- * Direct browser REST API call to Google Generative Language API
- * Automatically tries v1beta then v1 endpoint versions
+ * Direct browser REST API call to Google Generative Language v1beta API
  */
 async function callGeminiDirectRest(
   apiKey: string, 
@@ -100,58 +112,49 @@ async function callGeminiDirectRest(
   prompt: string, 
   systemInstruction?: string
 ): Promise<string> {
-  const apiVersions = ['v1beta', 'v1'];
-  let lastErr = '';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  const payload: any = {
+  const fullPromptText = systemInstruction 
+    ? `[Hướng dẫn sư phạm]: ${systemInstruction}\n\n[Nội dung yêu cầu]:\n${prompt}`
+    : prompt;
+
+  const payload = {
     contents: [
       {
-        role: 'user',
-        parts: [{ text: prompt }]
+        parts: [
+          { text: fullPromptText }
+        ]
       }
     ],
     generationConfig: {
       temperature: 0.7,
+      topP: 0.95
     }
   };
 
-  if (systemInstruction) {
-    payload.systemInstruction = {
-      parts: [{ text: systemInstruction }]
-    };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errorDetails = data.error?.message || `Lỗi HTTP ${response.status}: ${response.statusText}`;
+    const statusCode = data.error?.code || response.status;
+    const statusText = data.error?.status || '';
+    throw new Error(`[${statusCode} ${statusText}] ${errorDetails}`);
   }
 
-  for (const version of apiVersions) {
-    const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`;
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          return text;
-        }
-      } else {
-        const errorDetails = data.error?.message || `Lỗi HTTP ${response.status}: ${response.statusText}`;
-        const statusCode = data.error?.code || response.status;
-        const statusText = data.error?.status || '';
-        lastErr = `[${statusCode} ${statusText}] ${errorDetails}`;
-      }
-    } catch (netErr: any) {
-      lastErr = netErr.message || String(netErr);
-    }
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error('Dữ liệu phản hồi từ AI không chứa nội dung văn bản.');
   }
 
-  throw new Error(lastErr || `Không thể kết nối đến model ${model}`);
+  return text;
 }
 
 /**

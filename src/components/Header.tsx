@@ -1,20 +1,32 @@
 import { useState, useEffect } from 'react';
-import { Settings, ExternalLink, Key, Sparkles, BookOpen } from 'lucide-react';
+import { Settings, ExternalLink, Key, Sparkles, BookOpen, Zap } from 'lucide-react';
 
 interface HeaderProps {
   onOpenSettings: () => void;
 }
 
 export function Header({ onOpenSettings }: HeaderProps) {
-  const [hasKey, setHasKey] = useState(true);
-  const [currentModel, setCurrentModel] = useState('gemini-3-flash-preview');
+  const [currentModel, setCurrentModel] = useState('gemini-2.5-flash');
 
   useEffect(() => {
-    const key = localStorage.getItem('gemini_api_key');
-    const model = localStorage.getItem('selected_gemini_model') || 'gemini-3-flash-preview';
-    setHasKey(!!key);
-    setCurrentModel(model);
+    const updateModelDisplay = () => {
+      const model = localStorage.getItem('selected_gemini_model') || 'gemini-2.5-flash';
+      setCurrentModel(model);
+    };
+    updateModelDisplay();
+    window.addEventListener('storage', updateModelDisplay);
+    return () => window.removeEventListener('storage', updateModelDisplay);
   }, []);
+
+  const getDisplayModelName = (modelId: string) => {
+    if (modelId === 'gemini-2.5-flash') return 'Gemini 2.5 Flash';
+    if (modelId === 'gemini-2.5-pro') return 'Gemini 2.5 Pro';
+    if (modelId === 'gemini-2.0-flash') return 'Gemini 2.0 Flash';
+    if (modelId === 'gemini-2.0-pro') return 'Gemini 2.0 Pro';
+    if (modelId.includes('3-flash')) return 'Gemini 3 Flash';
+    if (modelId.includes('pro')) return 'Gemini Pro';
+    return 'Gemini 2.5 Flash';
+  };
 
   return (
     <header className="bg-slate-900 text-white px-6 py-2.5 flex items-center justify-between border-b border-slate-800 shrink-0 z-30 shadow-md">
@@ -50,8 +62,9 @@ export function Header({ onOpenSettings }: HeaderProps) {
         >
           <Key size={14} className="text-orange-400" />
           <span>Settings (API Key)</span>
-          <span className="text-[10px] px-1.5 py-0.5 bg-slate-900 text-slate-400 rounded-md font-mono border border-slate-700">
-            {currentModel.split('-')[0] + '-' + currentModel.split('-')[1]}
+          <span className="text-[10px] px-2 py-0.5 bg-slate-900 text-emerald-400 rounded-md font-semibold border border-slate-700 flex items-center gap-1">
+            <Zap size={11} className="text-amber-400 fill-amber-400" />
+            {getDisplayModelName(currentModel)}
           </span>
         </button>
       </div>

@@ -27,9 +27,9 @@ export function LessonBuilder({ lessonId, onBack, onOpenSettings }: LessonBuilde
     subject: 'Ngữ văn',
     grade: 'Lớp 6',
     duration: 2,
-    school: 'THCS Lê Quý Đôn',
-    department: 'Tổ Xã Hội',
-    teacherName: '',
+    school: 'Trường THCS & THPT Khánh Lâm',
+    department: 'Tổ Toán - Tin',
+    teacherName: 'Thầy Dương Bảo Quốc',
     lessonOrder: 'Tiết 1',
     objectives: {
       knowledge: '',
@@ -621,7 +621,7 @@ Trả về JSON ngắn gọn:
                   type="text" 
                   value={plan.school || ''}
                   onChange={e => setPlan({...plan, school: e.target.value})}
-                  placeholder="VD: THCS Lê Quý Đôn"
+                  placeholder="VD: Trường THCS & THPT Khánh Lâm"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-500"
                 />
               </div>
@@ -631,7 +631,7 @@ Trả về JSON ngắn gọn:
                   type="text" 
                   value={plan.department || ''}
                   onChange={e => setPlan({...plan, department: e.target.value})}
-                  placeholder="VD: Tổ Ngữ Văn"
+                  placeholder="VD: Tổ Toán - Tin"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-500"
                 />
               </div>
@@ -641,7 +641,7 @@ Trả về JSON ngắn gọn:
                   type="text" 
                   value={plan.teacherName || ''}
                   onChange={e => setPlan({...plan, teacherName: e.target.value})}
-                  placeholder="VD: Nguyễn Văn A"
+                  placeholder="VD: Thầy Dương Bảo Quốc"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:border-blue-500"
                 />
               </div>

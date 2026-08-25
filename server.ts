@@ -12,7 +12,7 @@ async function startServer() {
   app.post('/api/generate', async (req, res) => {
     try {
       const { prompt, systemInstruction, customApiKey, model } = req.body;
-      const apiKey = customApiKey || req.headers['x-api-key'] || process.env.GEMINI_API_KEY;
+      const apiKey = (customApiKey || req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '').trim();
 
       if (!apiKey) {
         return res.status(401).json({ 
@@ -21,56 +21,45 @@ async function startServer() {
       }
 
       let modelName = model || 'gemini-2.0-flash';
-      if (modelName === 'gemini-3-flash-preview' || modelName === 'gemini-2.5-flash') modelName = 'gemini-2.0-flash';
-      if (modelName === 'gemini-3-pro-preview' || modelName === 'gemini-2.5-pro') modelName = 'gemini-1.5-pro';
+      if (modelName.includes('3-pro') || modelName.includes('pro')) modelName = 'gemini-1.5-pro';
+      else if (modelName.includes('1.5-flash')) modelName = 'gemini-1.5-flash';
+      else modelName = 'gemini-2.0-flash';
 
-      const apiVersions = ['v1beta', 'v1'];
-      let lastErrorMsg = '';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-      const payload: any = {
+      const fullPromptText = systemInstruction 
+        ? `[Hướng dẫn sư phạm]: ${systemInstruction}\n\n[Nội dung yêu cầu]:\n${prompt}`
+        : prompt;
+
+      const payload = {
         contents: [
           {
-            role: 'user',
-            parts: [{ text: prompt }]
+            parts: [{ text: fullPromptText }]
           }
         ],
         generationConfig: {
           temperature: 0.7,
+          topP: 0.95
         }
       };
 
-      if (systemInstruction) {
-        payload.systemInstruction = {
-          parts: [{ text: systemInstruction }]
-        };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.error?.message || `Lỗi API (${response.status}): ${response.statusText}`;
+        return res.status(response.status).json({ error: errorMsg });
       }
 
-      for (const version of apiVersions) {
-        const url = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${apiKey}`;
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await response.json();
-
-          if (response.ok) {
-            const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            return res.json({ text: generatedText });
-          } else {
-            lastErrorMsg = data.error?.message || `Lỗi API (${response.status}): ${response.statusText}`;
-          }
-        } catch (err: any) {
-          lastErrorMsg = err.message || String(err);
-        }
-      }
-
-      return res.status(400).json({ error: lastErrorMsg });
+      const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      return res.json({ text: generatedText });
 
     } catch (error: any) {
       console.error('Error generating content:', error);

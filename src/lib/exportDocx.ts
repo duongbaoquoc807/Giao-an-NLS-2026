@@ -58,12 +58,12 @@ export const exportToDocx = async (plan: LessonPlan) => {
                     children: [
                       new Paragraph({
                         children: [
-                          new TextRun({ text: `TRƯỜNG: ${plan.school || '....................................'}`, font: FONT, size: 24, bold: true }),
+                          new TextRun({ text: `TRƯỜNG: ${plan.school || 'Trường THCS & THPT Khánh Lâm'}`, font: FONT, size: 24, bold: true }),
                         ],
                       }),
                       new Paragraph({
                         children: [
-                          new TextRun({ text: `TỔ CHUYÊN MÔN: ${plan.department || '.......................'}`, font: FONT, size: 24, bold: true }),
+                          new TextRun({ text: `TỔ CHUYÊN MÔN: ${plan.department || 'Tổ Toán - Tin'}`, font: FONT, size: 24, bold: true }),
                         ],
                       }),
                     ],
@@ -74,7 +74,7 @@ export const exportToDocx = async (plan: LessonPlan) => {
                       new Paragraph({
                         alignment: AlignmentType.RIGHT,
                         children: [
-                          new TextRun({ text: `Họ và tên GV: ${plan.teacherName || '....................................'}`, font: FONT, size: 24, bold: true }),
+                          new TextRun({ text: `Họ và tên GV: ${plan.teacherName || 'Thầy Dương Bảo Quốc'}`, font: FONT, size: 24, bold: true }),
                         ],
                       }),
                       new Paragraph({
