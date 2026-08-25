@@ -1,8 +1,8 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import { 
-  X, Key, Save, Download, Upload, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ExternalLink, Cpu, Zap, Flame
+  X, Key, Save, Download, Upload, CheckCircle2, AlertCircle, Sparkles, RefreshCw, ExternalLink, Cpu, Zap
 } from 'lucide-react';
-import { generateContent, VALID_FALLBACK_MODELS } from '../lib/gemini';
+import { generateContent, DEFAULT_MODELS, fetchAvailableModels } from '../lib/gemini';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -68,14 +68,19 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
 
   if (!isOpen) return null;
 
-  const handleSaveKeyAndModel = () => {
+  const handleSaveKeyAndModel = async () => {
     if (!apiKey.trim()) {
       alert('Vui lòng nhập Gemini API Key để tiếp tục.');
       return;
     }
-    localStorage.setItem('gemini_api_key', apiKey.trim());
+    const cleanKey = apiKey.trim();
+    localStorage.setItem('gemini_api_key', cleanKey);
     localStorage.setItem('selected_gemini_model', selectedModel);
     window.dispatchEvent(new Event('storage'));
+    
+    // Auto-discover models in background
+    fetchAvailableModels(cleanKey).catch(() => {});
+
     setTestStatus('success');
     setTestMessage('Đã lưu Cấu hình Model AI & API Key thành công!');
     setTimeout(() => {
@@ -88,18 +93,23 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
       alert('Vui lòng nhập API Key trước khi thử nghiệm.');
       return;
     }
+    const cleanKey = apiKey.trim();
     setTestStatus('testing');
-    setTestMessage(`Đang thử nghiệm kết nối với model ${selectedModel}...`);
+    setTestMessage(`Đang xác thực API Key và kiểm tra các model AI khả dụng...`);
     
-    localStorage.setItem('gemini_api_key', apiKey.trim());
+    localStorage.setItem('gemini_api_key', cleanKey);
     localStorage.setItem('selected_gemini_model', selectedModel);
     window.dispatchEvent(new Event('storage'));
 
     try {
-      const result = await generateContent('Hãy trả lời ngắn gọn: "Kết nối thành công!"');
+      // 1. Fetch available models from Google
+      const discovered = await fetchAvailableModels(cleanKey);
+      
+      // 2. Test generation
+      const result = await generateContent('Hãy trả lời: "Kết nối thành công!"');
       if (result) {
         setTestStatus('success');
-        setTestMessage(`Kết nối thành công với ${selectedModel}! Trợ lý AI sẵn sàng biên soạn giáo án.`);
+        setTestMessage(`Kết nối thành công! Đã kích hoạt ${discovered.length} model AI của Google cho tài khoản của bạn.`);
       }
     } catch (err: any) {
       setTestStatus('error');
@@ -228,7 +238,7 @@ export function SettingsModal({ isOpen, onClose, onDataRestored, isMandatory }: 
               })}
             </div>
             <p className="text-[11px] text-slate-500 italic">
-              * Quy trình Fallback tự động thông minh: Hệ thống ưu tiên model đã chọn và tự động chuyển đổi mượt mà khi model đạt giới hạn hạn ngạch (quota).
+              * Tự động dò tìm thông minh: Hệ thống tự động kết nối mô hình tối ưu nhất trong danh mục cho API Key của Thầy/Cô.
             </p>
           </div>
 

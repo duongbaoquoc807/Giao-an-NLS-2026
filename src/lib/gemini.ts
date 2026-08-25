@@ -1,39 +1,103 @@
-export const VALID_FALLBACK_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
+export interface DiscoveredModel {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+}
+
+// Default fallback list of verified Google Gemini models
+export const DEFAULT_MODELS = [
   'gemini-2.0-flash',
-  'gemini-2.0-pro',
-  'gemini-3-flash-preview',
   'gemini-1.5-flash',
-  'gemini-1.5-pro'
+  'gemini-1.5-pro',
+  'gemini-2.0-flash-lite-preview-02-05',
+  'gemini-1.5-flash-8b'
 ];
 
 /**
- * Returns alternative candidate model IDs for fallback retry
+ * Dynamically queries Google AI to list all models available for the user's API Key
  */
-export function getFallbackCandidates(modelName: string): string[] {
-  const clean = (modelName || '').trim().toLowerCase();
+export async function fetchAvailableModels(apiKey: string): Promise<string[]> {
+  if (!apiKey || !apiKey.trim()) return DEFAULT_MODELS;
   
-  if (clean.includes('pro')) {
-    return [
-      'gemini-2.5-pro',
-      'gemini-2.0-pro-exp-02-05',
-      'gemini-2.0-flash',
-      'gemini-1.5-pro',
-      'gemini-1.5-flash'
-    ];
+  const cleanKey = apiKey.trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
+  
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if (res.ok && Array.isArray(data.models)) {
+      const validModels = data.models
+        .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+        .map((m: any) => {
+          // Normalize name: 'models/gemini-2.0-flash' -> 'gemini-2.0-flash'
+          return m.name.replace(/^models\//, '');
+        });
+
+      if (validModels.length > 0) {
+        // Cache discovered models in localStorage
+        try {
+          localStorage.setItem('cached_available_models', JSON.stringify(validModels));
+        } catch (e) {}
+        return validModels;
+      }
+    }
+  } catch (err) {
+    console.warn('Cannot fetch dynamic models list, using default model list:', err);
   }
   
-  // Default flash fallback queue
-  return [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite-preview-02-05',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro'
-  ];
+  return DEFAULT_MODELS;
 }
 
+/**
+ * Gets cached or default list of valid models
+ */
+export function getCachedModels(): string[] {
+  try {
+    const cached = localStorage.getItem('cached_available_models');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {}
+  return DEFAULT_MODELS;
+}
+
+/**
+ * Resolves user selection to the best matching active Google model
+ */
+export function resolveModelName(selectedModel: string, availableModels: string[]): string {
+  if (!selectedModel) return availableModels[0] || 'gemini-2.0-flash';
+  
+  const clean = selectedModel.trim().toLowerCase();
+  
+  // Exact match
+  const exact = availableModels.find(m => m.toLowerCase() === clean);
+  if (exact) return exact;
+
+  // Pro match
+  if (clean.includes('pro')) {
+    const pro = availableModels.find(m => m.includes('pro'));
+    if (pro) return pro;
+  }
+
+  // Flash 2.5 / 2.0 / 3.0 match
+  if (clean.includes('2.5') || clean.includes('3') || clean.includes('flash')) {
+    const flash2 = availableModels.find(m => m.includes('2.0-flash') || m.includes('2.5-flash'));
+    if (flash2) return flash2;
+    const anyFlash = availableModels.find(m => m.includes('flash'));
+    if (anyFlash) return anyFlash;
+  }
+
+  return availableModels[0] || 'gemini-2.0-flash';
+}
+
+/**
+ * Main AI Content Generation Function
+ */
 export async function generateContent(
   prompt: string, 
   systemInstruction?: string,
@@ -46,20 +110,28 @@ export async function generateContent(
   }
 
   const selectedModel = localStorage.getItem('selected_gemini_model') || 'gemini-2.5-flash';
-  const candidates = getFallbackCandidates(selectedModel);
-
-  // Build model queue starting with selected model
-  const modelQueue = Array.from(new Set([
-    selectedModel,
-    ...candidates
+  
+  // 1. Get verified model list (cached or default)
+  let availableModels = getCachedModels();
+  
+  // 2. Resolve preferred model
+  const preferredModel = resolveModelName(selectedModel, availableModels);
+  
+  // 3. Build unique execution queue starting with preferred model
+  const executionQueue = Array.from(new Set([
+    preferredModel,
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    ...availableModels
   ]));
 
   let lastErrorMsg = '';
 
-  for (let i = 0; i < modelQueue.length; i++) {
-    const currentModel = modelQueue[i];
+  for (let i = 0; i < executionQueue.length; i++) {
+    const currentModel = executionQueue[i];
     
-    // 1. Try direct browser REST API
+    // Attempt A: Direct REST call
     try {
       const result = await callGeminiDirectRest(
         customApiKey, 
@@ -74,7 +146,7 @@ export async function generateContent(
       lastErrorMsg = directErr.message || String(directErr);
       console.warn(`[AI Direct Fetch Failed] Model ${currentModel}:`, lastErrorMsg);
 
-      // 2. Try proxy endpoint (/api/generate) as backup
+      // Attempt B: Proxy call via /api/generate as secondary
       try {
         const proxyResult = await callGeminiProxyApi(
           customApiKey, 
@@ -90,14 +162,28 @@ export async function generateContent(
         console.warn(`[AI Proxy Failed] Model ${currentModel}:`, lastErrorMsg);
       }
 
-      // Notify caller if retrying with next model
-      if (i < modelQueue.length - 1) {
-        const nextModel = modelQueue[i + 1];
+      // If next model exists, notify retry
+      if (i < executionQueue.length - 1) {
+        const nextModel = executionQueue[i + 1];
         if (onModelRetry) {
           onModelRetry(currentModel, nextModel, lastErrorMsg);
         }
       }
     }
+  }
+
+  // If initial queue failed, try fetching dynamic list from Google and retry once with first discovered model
+  try {
+    const liveModels = await fetchAvailableModels(customApiKey);
+    if (liveModels.length > 0 && !executionQueue.includes(liveModels[0])) {
+      const liveModel = liveModels[0];
+      const liveResult = await callGeminiDirectRest(customApiKey, liveModel, prompt, systemInstruction);
+      if (liveResult && liveResult.trim()) {
+        return liveResult;
+      }
+    }
+  } catch (e: any) {
+    lastErrorMsg = e.message || lastErrorMsg;
   }
 
   throw new Error(lastErrorMsg || 'Tất cả các model Gemini đều thất bại khi xử lý.');
@@ -112,10 +198,12 @@ async function callGeminiDirectRest(
   prompt: string, 
   systemInstruction?: string
 ): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  // Normalize model name
+  const cleanModel = model.replace(/^models\//, '');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
   const fullPromptText = systemInstruction 
-    ? `[Hướng dẫn sư phạm]: ${systemInstruction}\n\n[Nội dung yêu cầu]:\n${prompt}`
+    ? `[Hướng dẫn chuyên môn]: ${systemInstruction}\n\n[Nhiệm vụ]:\n${prompt}`
     : prompt;
 
   const payload = {
@@ -166,6 +254,7 @@ async function callGeminiProxyApi(
   prompt: string, 
   systemInstruction?: string
 ): Promise<string> {
+  const cleanModel = model.replace(/^models\//, '');
   const response = await fetch('/api/generate', {
     method: 'POST',
     headers: {
@@ -175,7 +264,7 @@ async function callGeminiProxyApi(
       prompt, 
       systemInstruction,
       customApiKey: apiKey,
-      model
+      model: cleanModel
     }),
   });
 
