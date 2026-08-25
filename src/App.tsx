@@ -3,10 +3,12 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { LessonBuilder } from './components/LessonBuilder';
+import { DigitalIntegrationView } from './components/DigitalIntegrationView';
 import { SettingsModal } from './components/SettingsModal';
+import { LessonPlan } from './types';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'builder'>('dashboard');
+  const [currentView, setCurrentView] = useState<'integrate' | 'dashboard' | 'builder'>('integrate');
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMandatoryKey, setIsMandatoryKey] = useState(false);
@@ -29,8 +31,14 @@ export default function App() {
     setCurrentView('builder');
   };
 
+  const handleIntegrationComplete = (enrichedPlan: LessonPlan) => {
+    setActiveLessonId(enrichedPlan.id);
+    setCurrentView('builder');
+  };
+
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-800 font-sans overflow-hidden">
+      {/* Header Bar */}
       <Header onOpenSettings={() => { setIsMandatoryKey(false); setIsSettingsOpen(true); }} />
 
       <div className="flex flex-1 overflow-hidden">
@@ -42,9 +50,20 @@ export default function App() {
         />
         
         <main className="flex-1 flex flex-col overflow-hidden">
-          {currentView === 'dashboard' && (
-            <Dashboard onEdit={handleEdit} onCreateNew={handleCreateNew} />
+          {currentView === 'integrate' && (
+            <DigitalIntegrationView 
+              onIntegrationComplete={handleIntegrationComplete}
+              onOpenSettings={() => { setIsMandatoryKey(false); setIsSettingsOpen(true); }}
+            />
           )}
+
+          {currentView === 'dashboard' && (
+            <Dashboard 
+              onEdit={handleEdit} 
+              onCreateNew={() => setCurrentView('integrate')} 
+            />
+          )}
+
           {currentView === 'builder' && (
             <LessonBuilder 
               lessonId={activeLessonId} 
